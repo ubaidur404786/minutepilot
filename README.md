@@ -27,9 +27,11 @@ This takes hours, and things get forgotten. Paid tools exist, but they send comp
 
 ## Demo video (2 min 33 s)
 
-[![MinutePilot demo video](docs/images/video-thumbnail.jpg)](docs/demo/minutepilot-demo.mp4)
 
-▶ [Watch the demo](docs/demo/minutepilot-demo.mp4) · [captions (.srt)](docs/demo/minutepilot-demo.srt)
+
+https://github.com/user-attachments/assets/0f5300f9-bd2f-420b-8342-a26468aa9f7b
+
+
 
 The video shows:
 - a recording turned into minutes;
