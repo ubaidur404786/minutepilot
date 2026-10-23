@@ -1,0 +1,13 @@
+# Reference answers from QMSum (human-written)
+
+## Summarize the whole meeting.
+This meeting was the eleventh evidence session on the Children Abolition of Defense of Reasonable Publishment Wales Bill. Barry Hughes was there to answer questions related to the Bill. Six main topics that had been discussed or explained. The first one was how the Bill protected the children in terms of prosecutions. The second part explained the divergence between regions and the Bill's implication on England. The third part explained how the law was implemented, and the fourth talked about prosecutions and potential alternatives. Barry Hughes then further explained our-of-court disposals and responded to a specific infrastructure for these cases. In the last part, the meeting turned to discuss a number of unintended consequences related to the Bill.
+
+# Topics
+
+- Efficacy of the law
+- Divergence between the law in England and Wales
+- Implementation of the law
+- Prosecutions and potential alternatives
+- Out-of-court disposals
+- Unintended consequences

@@ -1,0 +1,19 @@
+.env
+*.env
+!.env.example
+__pycache__/
+.venv/
+docker/data/
+*.log
+
+# Big public test files (download again with the links in test-data/SOURCES.md)
+test-data/public/audio/*.wav
+
+# React chat page: dependencies and build output (Docker builds it)
+python-service/web/node_modules/
+python-service/app/ui/
+
+# working files
+docs/video/
+python-service/.pytest_cache/
+.pytest_cache/

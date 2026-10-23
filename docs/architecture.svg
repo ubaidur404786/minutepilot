@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1200" height="760" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .t  { font-size: 15px; font-weight: 600; fill: #0f172a; }
+      .s  { font-size: 12.5px; fill: #334155; }
+      .h  { font-size: 13px; font-weight: 700; fill: #475569; letter-spacing: .06em; }
+      .l  { font-size: 12px; fill: #475569; }
+      .ln { stroke: #475569; stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+      .dash { stroke-dasharray: 5 4; }
+    </style>
+  </defs>
+  <rect width="1200" height="760" fill="#ffffff"/>
+
+  <text x="600" y="36" text-anchor="middle" style="font-size:22px;font-weight:700;fill:#0f172a">MinutePilot · how it works</text>
+  <text x="600" y="60" text-anchor="middle" class="s">Everything runs on one laptop in Docker, with free local AI models. Only Google is in the cloud.</text>
+
+  <!-- column headers -->
+  <text x="110" y="100" text-anchor="middle" class="h">USER</text>
+  <text x="365" y="100" text-anchor="middle" class="h">PYTHON SERVICE</text>
+  <text x="760" y="100" text-anchor="middle" class="h">n8n · ONE WORKFLOW</text>
+  <text x="1090" y="100" text-anchor="middle" class="h">GOOGLE</text>
+
+  <!-- laptop frame -->
+  <rect x="225" y="112" width="745" height="620" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-dasharray="6 5"/>
+  <text x="240" y="722" class="l">Laptop · Docker (n8n, PostgreSQL, Python service) · Ollama on the GPU</text>
+
+  <!-- user -->
+  <rect x="20" y="130" width="180" height="230" rx="12" fill="#eef2ff" stroke="#6366f1"/>
+  <text x="110" y="158" text-anchor="middle" class="t">Chat page</text>
+  <text x="110" y="177" text-anchor="middle" class="l">React · localhost:8000</text>
+  <text x="38" y="208" class="s">• type or paste notes</text>
+  <text x="38" y="230" class="s">• attach a recording</text>
+  <text x="38" y="252" class="s">• attach a photo of a</text>
+  <text x="50" y="270" class="s">whiteboard / notebook</text>
+  <text x="38" y="292" class="s">• ask a question</text>
+  <text x="38" y="314" class="s">• see every step live</text>
+  <text x="38" y="336" class="s">• Approve the draft</text>
+
+  <!-- python service -->
+  <rect x="245" y="130" width="240" height="230" rx="12" fill="#ecfeff" stroke="#0891b2"/>
+  <text x="365" y="158" text-anchor="middle" class="t">FastAPI service</text>
+  <text x="263" y="190" class="s">• serves the chat page</text>
+  <text x="263" y="212" class="s">• audio → text: faster-whisper</text>
+  <text x="263" y="234" class="s">• photo → text: qwen2.5vl:3b</text>
+  <text x="263" y="256" class="s">• stores notes + draft per chat</text>
+  <text x="263" y="278" class="s">• live steps → page (SSE)</text>
+  <text x="263" y="312" class="l">/api/chat  /extract  /transcribe</text>
+  <text x="263" y="330" class="l">/read-image  /api/sessions/…  /events</text>
+
+  <!-- ollama -->
+  <rect x="245" y="520" width="240" height="120" rx="12" fill="#fef3c7" stroke="#d97706"/>
+  <text x="365" y="548" text-anchor="middle" class="t">Ollama (local GPU)</text>
+  <text x="263" y="578" class="s">• qwen2.5:7b: agent + minutes</text>
+  <text x="263" y="600" class="s">• qwen2.5vl:3b: reads photos</text>
+  <text x="263" y="622" class="l">one model in the GPU at a time</text>
+
+  <!-- n8n blocks -->
+  <rect x="520" y="130" width="440" height="560" rx="12" fill="#ffffff" stroke="#94a3b8"/>
+  <g>
+    <rect x="538" y="148" width="190" height="62" rx="8" fill="#dbeafe" stroke="#3b82f6"/>
+    <text x="633" y="172" text-anchor="middle" class="t">1–2 Message in</text>
+    <text x="633" y="193" text-anchor="middle" class="l">webhook · files → text · notes</text>
+
+    <rect x="752" y="148" width="190" height="62" rx="8" fill="#ffedd5" stroke="#f97316"/>
+    <text x="847" y="172" text-anchor="middle" class="t">3 Choose the route</text>
+    <text x="847" y="193" text-anchor="middle" class="l">approve · minutes · ask AI</text>
+
+    <rect x="538" y="236" width="190" height="78" rx="8" fill="#ede9fe" stroke="#8b5cf6"/>
+    <text x="633" y="260" text-anchor="middle" class="t">4 AI agent</text>
+    <text x="633" y="280" text-anchor="middle" class="l">qwen2.5:7b + memory</text>
+    <text x="633" y="298" text-anchor="middle" class="l">picks a tool</text>
+
+    <rect x="752" y="236" width="190" height="78" rx="8" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="847" y="260" text-anchor="middle" class="t">5 Fast paths</text>
+    <text x="847" y="280" text-anchor="middle" class="l">approval / minutes</text>
+    <text x="847" y="298" text-anchor="middle" class="l">without the AI choosing</text>
+
+    <rect x="538" y="340" width="404" height="50" rx="8" fill="#ffedd5" stroke="#f97316"/>
+    <text x="740" y="362" text-anchor="middle" class="t">7 Tool call → Which job?</text>
+    <text x="740" y="380" text-anchor="middle" class="l">minutes · approve · lookup · agenda   (6 sends the answer back to the chat)</text>
+
+    <rect x="538" y="416" width="190" height="80" rx="8" fill="#dcfce7" stroke="#16a34a"/>
+    <text x="633" y="440" text-anchor="middle" class="t">8 Write the minutes</text>
+    <text x="633" y="460" text-anchor="middle" class="l">Ollama JSON output: summary,</text>
+    <text x="633" y="477" text-anchor="middle" class="l">decisions, actions, next meeting</text>
+
+    <rect x="752" y="416" width="190" height="80" rx="8" fill="#fee2e2" stroke="#dc2626"/>
+    <text x="847" y="440" text-anchor="middle" class="t">9 After approval</text>
+    <text x="847" y="460" text-anchor="middle" class="l">safety check on recipients,</text>
+    <text x="847" y="477" text-anchor="middle" class="l">then act in Google</text>
+
+    <rect x="538" y="522" width="190" height="62" rx="8" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="633" y="546" text-anchor="middle" class="t">10 Lookups</text>
+    <text x="633" y="566" text-anchor="middle" class="l">tasks · calendar · register</text>
+
+    <rect x="752" y="522" width="190" height="62" rx="8" fill="#fef9c3" stroke="#ca8a04"/>
+    <text x="847" y="546" text-anchor="middle" class="t">11 Agenda</text>
+    <text x="847" y="566" text-anchor="middle" class="l">daily 8:00 or on request</text>
+
+    <rect x="538" y="610" width="404" height="62" rx="8" fill="#fef9c3" stroke="#ca8a04"/>
+    <text x="740" y="634" text-anchor="middle" class="t">12 Morning reminders</text>
+    <text x="740" y="654" text-anchor="middle" class="l">daily 8:05 · late tasks / tasks due today → one email</text>
+  </g>
+
+  <!-- google -->
+  <rect x="1000" y="130" width="180" height="350" rx="12" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="1090" y="158" text-anchor="middle" class="t">Your Google account</text>
+  <rect x="1018" y="176" width="144" height="56" rx="8" fill="#fff" stroke="#cbd5e1"/>
+  <text x="1090" y="200" text-anchor="middle" class="t">Gmail</text>
+  <text x="1090" y="219" text-anchor="middle" class="l">minutes, agenda, reminders</text>
+  <rect x="1018" y="244" width="144" height="56" rx="8" fill="#fff" stroke="#cbd5e1"/>
+  <text x="1090" y="268" text-anchor="middle" class="t">Google Tasks</text>
+  <text x="1090" y="287" text-anchor="middle" class="l">one task per action</text>
+  <rect x="1018" y="312" width="144" height="56" rx="8" fill="#fff" stroke="#cbd5e1"/>
+  <text x="1090" y="336" text-anchor="middle" class="t">Calendar</text>
+  <text x="1090" y="355" text-anchor="middle" class="l">deadlines, next meeting</text>
+  <rect x="1018" y="380" width="144" height="56" rx="8" fill="#fff" stroke="#cbd5e1"/>
+  <text x="1090" y="404" text-anchor="middle" class="t">Sheets</text>
+  <text x="1090" y="423" text-anchor="middle" class="l">meeting register</text>
+  <text x="1090" y="462" text-anchor="middle" class="l">n8n OAuth credentials</text>
+
+  <!-- arrows -->
+  <path class="ln" d="M200,190 L243,190"/>
+  <path class="ln" d="M245,290 L202,290"/>
+  <text x="203" y="182" class="l">msg</text>
+  <text x="203" y="306" class="l">live</text>
+
+  <path class="ln" d="M485,175 L536,175"/>
+  <path class="ln dash" d="M536,198 L487,198"/>
+  <text x="489" y="168" class="l">chat</text>
+  <text x="489" y="214" class="l">steps</text>
+
+  <path class="ln" d="M728,179 L750,179"/>
+  <path class="ln" d="M847,210 L847,234"/>
+  <path class="ln" d="M800,210 C760,222 690,222 650,234"/>
+  <path class="ln" d="M633,314 L633,338"/>
+  <path class="ln" d="M847,314 L847,338"/>
+  <path class="ln" d="M633,390 L633,414"/>
+  <path class="ln" d="M847,390 L847,414"/>
+  <path class="ln" d="M740,390 L740,508 L633,508 L633,520"/>
+  <path class="ln" d="M740,508 L847,508 L847,520"/>
+
+  <!-- n8n to python (notes/draft) and ollama -->
+  <path class="ln dash" d="M538,456 C500,456 470,400 450,362"/>
+  <text x="372" y="392" class="l">notes, draft</text>
+  <path class="ln" d="M538,290 C500,300 470,480 440,518"/>
+  <path class="ln" d="M538,470 C510,490 500,520 487,560"/>
+  <text x="420" y="500" class="l">prompts</text>
+
+  <!-- n8n to google -->
+  <path class="ln" d="M942,456 L998,420"/>
+  <path class="ln" d="M942,456 L998,330"/>
+  <path class="ln" d="M942,456 L998,270"/>
+  <path class="ln" d="M942,456 L998,205"/>
+  <path class="ln dash" d="M942,553 L998,460"/>
+  <path class="ln dash" d="M942,640 L1016,215"/>
+
+  <!-- legend -->
+  <text x="1000" y="540" class="s" style="font-weight:600">Approval gate</text>
+  <text x="1000" y="560" class="l">Nothing is sent before the user</text>
+  <text x="1000" y="578" class="l">clicks Approve. Emails only go to</text>
+  <text x="1000" y="596" class="l">the owner and owner+alias@.</text>
+  <text x="1000" y="634" class="s" style="font-weight:600">Cost: 0 €</text>
+  <text x="1000" y="654" class="l">n8n Community, Ollama,</text>
+  <text x="1000" y="672" class="l">faster-whisper, free Google APIs</text>
+</svg>

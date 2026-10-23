@@ -1,0 +1,3964 @@
+{
+  "id": "MPallInOne000001",
+  "name": "MinutePilot (all in one)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 1 · Message in\n**When:** every time you press Send on the chat page.\n**Who calls it:** the Python service, `POST /webhook/minutepilot-chat`.\n**Does:** reads the message and the list of attached files.\n\nExample input:\n```\n{ \"sessionId\": \"chat-42\",\n  \"message\": \"Make the minutes\",\n  \"files\": [{ \"file_id\": \"f1\",\n    \"name\": \"board.jpg\", \"kind\": \"image\" }] }\n```",
+        "height": 727,
+        "width": 560,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "name": "1 · Message in",
+      "id": "4dacdd1e-cc45-5be9-8645-76fc1c0d72d5"
+    },
+    {
+      "parameters": {
+        "content": "## 2 · Files to text, save long notes\n**Audio** → Whisper writes down the words. **Photo** → the vision model reads the board. Both run in the Python service (`/extract`); this is the slow part, it can take minutes.\n**Long pasted text** (150+ words, or a typed list) → saved as the meeting notes.\nThen it asks the Python service what this chat already has.\n\nExample: `board.jpg` → \"Action: Paul sends the budget by Friday ...\"\nReturns: `{ \"notes\": [{ \"source\": \"photo\", \"words\": 84 }], \"draft\": null }`",
+        "height": 727,
+        "width": 1240,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        620,
+        0
+      ],
+      "name": "2 · Files and notes",
+      "id": "fe2d9b85-dc6c-58cf-b6c7-ae4f5c2a6ba1"
+    },
+    {
+      "parameters": {
+        "content": "## 3 · Choose the route\nSimple rules, no AI: fast and safe.\n- \"Approve\" or \"valider\" and a draft exists → **0** approve directly\n- new files or notes + \"make the minutes\" (or no text) → **1** make minutes directly\n- anything else → **2** ask the AI agent\n\nExample: `{ \"message\": \"approve\" }` → `{ \"route\": 0 }`",
+        "height": 727,
+        "width": 640,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        0
+      ],
+      "name": "3 · Choose the route",
+      "id": "e588cc99-5499-50bb-865d-19b136079cd3"
+    },
+    {
+      "parameters": {
+        "content": "## 4 · The AI agent (qwen2.5:7b in Ollama)\n**For:** questions and changes, for example \"Which tasks are open?\" or \"Action 2 is due Friday\".\nThe agent reads the message, remembers the last turns of this chat (**Chat memory**) and picks a **tool** (bottom row). Each tool runs block **7 · Tool call** of this same workflow.\n- **make_minutes**, **change_minutes**: write or fix the draft (block 8)\n- **approve_minutes**: act in Google (block 9)\n- **lookup**: tasks, calendar, past meetings (block 10)\n- **prepare_agenda**: agenda of the next meeting (block 11)\n\n**Format reply** adds a warning when a tool failed, so a small model cannot hide a mistake.\nOutput: `{ \"reply\": \"Open tasks (2): ...\", \"steps\": [{ \"tool\": \"lookup\" }] }`",
+        "height": 1007,
+        "width": 1220,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        0
+      ],
+      "name": "4 · AI agent",
+      "id": "69d4d280-f13a-560a-a8a4-0f552b3545ae"
+    },
+    {
+      "parameters": {
+        "content": "## 5 · Fast paths (no AI choice needed)\nWhen the route is clear, n8n calls the job directly instead of asking the AI: faster, and the model cannot pick the wrong tool.\n- **Approve directly** → block 9 (email, tasks, calendar, sheet)\n- **Make minutes directly** → block 8\nEach has a normal reply and an error reply (lower arrow = error output).",
+        "height": 905,
+        "width": 1220,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        1067
+      ],
+      "name": "5 · Fast paths",
+      "id": "d79ce08d-6d89-5c71-8172-504d77cdf3c9"
+    },
+    {
+      "parameters": {
+        "content": "## 6 · Answer out\nSends the reply back to the chat page. The page shows it with the draft card and the agent steps.\n\nExample output:\n```\n{ \"reply\": \"The minutes draft is ready: ...\",\n  \"steps\": [{ \"tool\": \"make_minutes\" }] }\n```",
+        "height": 727,
+        "width": 620,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3900,
+        0
+      ],
+      "name": "6 · Answer out",
+      "id": "8c7c41e5-d7ee-5089-bc3b-4b79506020fd"
+    },
+    {
+      "parameters": {
+        "content": "# MinutePilot: the whole system in one workflow\n**What it does:** you send meeting material in the chat: typed notes, an audio recording, or photos of a whiteboard or notebook. The AI writes the **minutes**: decisions, actions (who does what, by when), postponed topics. You check the draft and click **Approve**. Then MinutePilot emails the minutes, creates Google Tasks, puts the deadlines in Google Calendar and saves the meeting in a Google Sheet.\n\n**Free, and 100 % on this laptop:** n8n (this page), a small Python service (reads audio and photos) and Ollama with free AI models: `qwen2.5:7b` writes, `qwen2.5vl:3b` reads photos, Whisper `small` listens to audio. No paid AI service, the notes never leave the laptop (only Google gets the final result). On this laptop (6 GB GPU) a photo takes 2 to 4 minutes; a stronger computer makes it much faster.\n\n## How to read this page\nEach coloured block is one job. Read the block title, then follow the arrows from left to right.\n- **Blue**: chat in and out (blocks 1, 2, 6)\n- **Orange**: routers, they decide where a message goes (blocks 3, 7)\n- **Purple**: the AI agent and its tools (block 4)\n- **Green**: the AI writes the minutes draft (block 8)\n- **Red**: acts in Google, only after you approve (block 9)\n- **Yellow**: runs by itself every morning (blocks 11, 12)\n- **Grey**: fast paths and lookups (blocks 5, 10)\n\nNodes named **Log: ...** only send a progress step to the chat page, so you can watch the work live. They change nothing.\n\n## One message, step by step\n1. You press Send: **1 · Message in**\n2. Files become text, long notes are saved: **2**\n3. **3 · Choose the route**: approve, make minutes, or ask the AI agent\n4. **4 · AI agent** or **5 · Fast paths** call a job through **7 · Tool call**\n5. The job runs: **8** minutes, **9** act in Google, **10** lookup, **11** agenda\n6. The answer goes back to the chat: **6 · Answer out**\n\n**Watch it run:** open **Executions** (top of this page). A running chat shows as *Running*; click it to see which node is busy. Each tool call is its own execution of this same workflow.",
+        "height": 670,
+        "width": 1440,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1500,
+        0
+      ],
+      "name": "Start here",
+      "id": "f069d799-2840-55c1-9f54-975c41ee26d2"
+    },
+    {
+      "parameters": {
+        "content": "## 7 · Tool call: the door to every job\n**Who calls it:** the agent tools (block 4) and the fast paths (block 5). They run this same workflow again, with a **job** name. In Executions each call is its own run.\n**Which job?** sends it to the right block:\nminutes → 8 · approve → 9 · lookup → 10 · agenda → 11\n\nExample input:\n```\n{ \"job\": \"lookup\", \"sessionId\": \"chat-42\",\n  \"action\": \"tasks\", \"query\": \"\" }\n```\nReturns text for the agent: `{ \"result\": \"Open tasks (2): ...\" }`",
+        "height": 969,
+        "width": 820,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        2272
+      ],
+      "name": "7 · Tool call",
+      "id": "f2e4abdb-1bf9-5eea-8bcc-ca0712230277"
+    },
+    {
+      "parameters": {
+        "content": "## 8 · Write the minutes draft (AI)\n**Called by:** make_minutes, change_minutes, or Make minutes directly.\n1. Gets the meeting notes and the current draft from the Python service\n2. **Build prompt**: finds the language of the notes, adds rules (only names that are in the notes, no invented dates)\n3. **Ollama: write minutes**: qwen2.5:7b must answer in a fixed JSON format\n4. **Make draft** checks the answer (removes unknown names and repeated decisions), then saves it\n\nExample AI answer:\n```\n{ \"title\": \"Weekly team meeting\",\n  \"decisions\": [\"Move the launch to May\"],\n  \"actions\": [{ \"owner\": \"Paul\", \"what\": \"Send the budget\",\n                \"due_date\": \"2026-10-30\" }] }\n```\nReturns: \"Draft saved ... 1 decision, 1 action, 0 postponed topics.\"",
+        "height": 815,
+        "width": 1580,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        880,
+        2272
+      ],
+      "name": "8 · Write the minutes",
+      "id": "be71e354-8df8-5fff-914b-9d61bfa64352"
+    },
+    {
+      "parameters": {
+        "content": "## 10 · Lookups (read only)\n**Called by:** the lookup tool. Changes nothing.\n- action **tasks** → open Google Tasks\n- action **calendar** → events in the next 60 days\n- action **register** → past meetings in the Google Sheet (query = keywords)\n\nExample: `{ \"action\": \"tasks\" }`\n→ \"Open tasks (2): - Send the budget (due 2026-10-30) ...\"",
+        "height": 1054,
+        "width": 760,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2520,
+        2272
+      ],
+      "name": "10 · Lookups",
+      "id": "3b48ea03-0d90-5241-8d9a-d7bbf2825248"
+    },
+    {
+      "parameters": {
+        "content": "## 9 · After approval: act in Google\n**Called by:** approve_minutes or Approve directly, only after you approve.\nThe branches run top to bottom:\n**email** (Gmail) → **tasks** (Google Tasks + register) → **calendar** (deadlines + next meeting) → **postponed topics** → **meeting row** (Google Sheets) → the draft is marked approved.\n\n**Safety:** the email only goes to the owner's address and its `+` aliases (`you+marie@gmail.com`). Any other address stops the workflow here.\n**Safe retry:** each finished step is recorded (**Record:** nodes). If something fails halfway and you approve again, the finished steps are skipped: no double emails or tasks.\n\nReturns: \"Done. Minutes emailed to 3 address(es). 2 Google Tasks and 3 calendar events created.\"",
+        "height": 2068,
+        "width": 1740,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        3626
+      ],
+      "name": "9 · After approval: act in Google",
+      "id": "6e8b1a5f-b6ff-5cc6-b2f6-94b5bd03e146"
+    },
+    {
+      "parameters": {
+        "content": "## 11 · Agenda of the next meeting\n**Runs:** every day at 8:00 by itself, from the chat (tool prepare_agenda), or with **Test now (agenda)**.\nFinds the next meeting in Google Calendar, takes the open tasks and the postponed topics, and the AI writes a draft agenda.\n- every morning: a meeting in 2 days → the agenda is emailed to you\n- from the chat: the agenda is shown in the chat",
+        "height": 886,
+        "width": 2460,
+        "color": 1
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        3626
+      ],
+      "name": "11 · Agenda",
+      "id": "16067392-1616-5dfb-87db-05c4c861faf9"
+    },
+    {
+      "parameters": {
+        "content": "## 12 · Morning reminders\n**Runs:** every day at 8:05 by itself, or with **Test now (reminders)**.\nGoogle Tasks that are late or due today → one email to you. No email when nothing is due. No AI here.",
+        "height": 577,
+        "width": 920,
+        "color": 1
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4320,
+        3626
+      ],
+      "name": "12 · Morning reminders",
+      "id": "4877a8a0-998b-5aa6-8489-d24339a187ce"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "minutepilot-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a17485c7-c5c3-4d4d-8be7-89befa8f0230",
+      "name": "Chat message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        80,
+        507
+      ],
+      "webhookId": "b8e55eb6-f396-4f46-a10e-8fdc152f1362"
+    },
+    {
+      "parameters": {
+        "jsCode": "// What the chat page sent: { sessionId, message, files: [{ file_id, name, kind }] }\nconst b = $input.first().json.body || {};\nconst files = Array.isArray(b.files) ? b.files : [];\nconst message = String(b.message || '').trim();\nconst words = (s) => s.split(/\\s+/).filter(Boolean).length;\nconst lines = message.split('\\n').filter((l) => l.trim()).length;\nreturn [{ json: {\n  sessionId: String(b.sessionId || ''),\n  // agent memory key: changes when the chat is cleared, so the agent forgets the old chat\n  memoryKey: String(b.memoryKey || b.sessionId || ''),\n  message,\n  fileIds: files.map((f) => f.file_id),\n  fileNames: files.map((f) => `${f.name} (${f.kind})`),\n  hasFiles: files.length > 0,\n  // pasted meeting notes, not a question: more than ~150 words,\n  // or a short list of typed notes (4+ lines and 30+ words)\n  isLongPaste: words(message) > 150 || (lines >= 4 && words(message) >= 30),\n} }];"
+      },
+      "id": "10e047eb-8fc5-4d4a-adfc-77c4108a50b6",
+      "name": "Prepare input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        507
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Prepare input').first().json.sessionId, step: \"n8n received the message\", status: \"done\", detail: String($json.hasFiles ? 'files: ' + $json.fileNames.join(', ') : 'text only'), source: 'n8n' }) }}"
+      },
+      "id": "2353c49c-cd28-4212-aed3-ebe2ea45f27f",
+      "name": "Log: message received",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        320,
+        307
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $json.hasFiles ? 0 : 1 }}"
+      },
+      "id": "6e2e984d-ffb4-4ad9-bd36-d9d2adc2d24f",
+      "name": "Files attached?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        700,
+        507
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Prepare input').first().json.sessionId, step: \"Turning files into text (one model at a time)\", status: \"running\", detail: String($('Prepare input').first().json.fileNames.join(', ')), source: 'n8n' }) }}"
+      },
+      "id": "d5962534-6037-4e09-b46b-8785b8095e54",
+      "name": "Log: reading files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        940,
+        307
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/extract",
+        "options": {
+          "timeout": 1800000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session_id: $json.sessionId, file_ids: $json.fileIds }) }}"
+      },
+      "id": "c60b4a63-f0cf-4126-998d-07b39fcb955a",
+      "name": "Extract text from files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        940,
+        507
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Prepare input').first().json.sessionId, step: \"Files turned into text\", status: \"done\", detail: String($json.items.map(i => i.ok ? `${i.name}: ${i.words} words` : `${i.name}: FAILED (${i.error})`).join('; ')), source: 'n8n' }) }}"
+      },
+      "id": "977a6385-0a4a-4fb0-855d-921a4d46a3cd",
+      "name": "Log: files read",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        307
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $('Prepare input').first().json.isLongPaste ? 0 : 1 }}"
+      },
+      "id": "433066cc-3cd1-413c-b9cb-8fe5ae2fc458",
+      "name": "Long pasted notes?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1180,
+        507
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Prepare input').first().json.sessionId }}/notes",
+        "options": {
+          "timeout": 60000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: 'pasted notes', text: $('Prepare input').first().json.message }) }}"
+      },
+      "id": "782da02a-8796-41c8-9992-9b2cc0480f6d",
+      "name": "Save pasted notes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        507
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Prepare input').first().json.sessionId, step: \"Saved the pasted notes\", status: \"done\", detail: String($json.words + ' words'), source: 'n8n' }) }}"
+      },
+      "id": "731466d9-17c1-4b67-8e0b-20a232b8e679",
+      "name": "Log: notes saved",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        307
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Prepare input').first().json.sessionId }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "4d297363-c022-4b02-8477-4f1ff804d141",
+      "name": "Get session status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1660,
+        507
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Give the agent a short message + what the session already contains.\n// The full notes never go to the agent: the make_minutes tool reads them itself.\nconst p = $('Prepare input').first().json;\nconst s = $input.first().json;\nconst notes = s.notes.length ? s.notes.map((n) => `${n.source} (${n.words} words)`).join('; ') : 'none';\nconst draft = s.draft\n  ? `a draft \"${s.draft.title}\" exists, status: ${s.draft.status}, ${s.draft.actions} actions`\n  : 'no draft yet';\nlet msg = p.message;\nif (p.isLongPaste) {\n  const words = msg.split(/\\s+/);\n  msg = `[I pasted meeting notes (${words.length} words), saved in the session notes. Start: \"${words.slice(0, 40).join(' ')} …\"]`;\n}\nif (!msg && p.hasFiles) msg = '[I sent files only. Their text is saved in the session notes.]';\nconst chatInput = `${msg}\\n\\n(System info, not written by the user: meeting notes in this session: ${notes}. Minutes: ${draft}.)`;\n// A clear approval of a draft skips the AI: sending email must not depend on the model\n// choosing the right tool (a 7B model sometimes answers \"sent!\" without calling it).\nconst approveWords = /^(approve|approved|ok,? send( it)?|send( it)?|yes,? send( it)?|valider|je valide|valid[eé]|approuv[eé]r?)[\\s.!]*$/i;\nconst isApproval = !!s.draft && approveWords.test(p.message);\n// New meeting material (files or pasted notes) + a request for minutes (or no text at all)\n// also skips the AI choice: the model sometimes answered \"no notes yet\" right after a photo.\nconst asksMinutes = /minutes|compte[- ]rendu|proc[eè]s[- ]verbal|\\bpv\\b|r[eé]sum|summar/i;\nconst isMinutesRequest = !isApproval && (p.hasFiles || p.isLongPaste) && (!p.message || asksMinutes.test(p.message));\n// 0 = approve directly, 1 = make the minutes directly, 2 = let the AI agent decide\nconst route = isApproval ? 0 : (isMinutesRequest ? 1 : 2);\nreturn [{ json: { sessionId: p.sessionId, chatInput, isApproval, route } }];"
+      },
+      "id": "93b5a9ea-8ba2-4a1b-bc26-408b5b746ce3",
+      "name": "Build agent input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        507
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $json.sessionId, step: \"AI agent is deciding what to do\", status: \"running\", detail: String($env.MINUTEPILOT_TEXT_MODEL), source: 'n8n' }) }}"
+      },
+      "id": "b6347dde-cdae-45d9-a7fd-af94603bf2be",
+      "name": "Log: agent thinking",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2700,
+        307
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=You are MinutePilot, the assistant of a meeting secretary (for example the secretary of a French CSE). Today is {{ $now.toFormat('cccc yyyy-MM-dd') }}.\nYou turn meeting material into minutes and, only after approval, into emails, tasks and calendar events.\n\nUse your tools:\n- make_minutes: the user sent meeting material (recording, photos, pasted notes) or asks for minutes. Pass title, date (YYYY-MM-DD) and attendees (comma-separated first names) only if the user wrote them in the chat, else empty strings. Never guess them from file names.\n- change_minutes: the user wants to change, fix or correct the existing draft. Always call it; the draft only changes through this tool. Pass their request in full as \"changes\".\n- approve_minutes: ONLY when the user clearly approves the draft (\"Approve\", \"OK, send it\", \"Valider\"). Never call it on your own.\n- lookup: questions about open tasks (action \"tasks\"), upcoming meetings / calendar (action \"calendar\"), or past meetings and decisions (action \"register\", query = keywords).\n- prepare_agenda: the user asks for the agenda (ordre du jour) of the next meeting.\n\nRules:\n- The draft is shown to the user by the chat page. After make_minutes or change_minutes, say in one or two sentences that the draft is ready and ask to approve or to say what to change. Do not repeat the whole draft.\n- If there are no meeting notes yet and the user asks for minutes, ask them to send a recording, photos or notes.\n- lookup and prepare_agenda work at any time, even when this chat has no notes or draft: they read Google Tasks, Calendar and the register.\n- Never invent tool results, names, dates or decisions.\n- Never say that minutes were sent, tasks created or calendar events added unless approve_minutes returned that in this turn.\n- Answer in the language of the user's last message, French or English only. Be short and clear.",
+          "maxIterations": 5,
+          "returnIntermediateSteps": true
+        }
+      },
+      "id": "aeff4bcf-4cf0-4dc6-8818-a72c8ef9fc65",
+      "name": "MinutePilot agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2940,
+        507
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "={{ $env.MINUTEPILOT_TEXT_MODEL }}",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": "={{ Number($env.MINUTEPILOT_NUM_CTX) || 8192 }}",
+          "keepAlive": "10m",
+          "think": false
+        }
+      },
+      "id": "ff913117-1505-4d9e-9d4a-30674e1b009b",
+      "name": "Ollama chat model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        2700,
+        787
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "MPollamaLocal001",
+          "name": "Ollama (local)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Prepare input').first().json.memoryKey }}",
+        "contextWindowLength": 10
+      },
+      "id": "73cc054e-a0bf-4593-b5d9-44fc73c9ff42",
+      "name": "Chat memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        2850,
+        787
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Write a NEW minutes draft from the meeting notes saved in this session (audio transcripts, photo text, pasted notes). Inputs: title, date (YYYY-MM-DD), attendees (comma-separated names). Use empty strings when unknown.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "MPallInOne000001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "minutes",
+            "sessionId": "={{ $('Build agent input').first().json.sessionId }}",
+            "title": "={{ $fromAI('title', 'Meeting title, or empty string', 'string', '') }}",
+            "date": "={{ $fromAI('date', 'Meeting date YYYY-MM-DD, or empty string', 'string', '') }}",
+            "attendees": "={{ $fromAI('attendees', 'Comma-separated attendee names, or empty string', 'string', '') }}",
+            "changes": "",
+            "action": "",
+            "query": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "sessionId",
+              "displayName": "sessionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "attendees",
+              "displayName": "attendees",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "changes",
+              "displayName": "changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "137db08d-8910-41ef-a0a0-1b9d7890c550",
+      "name": "make_minutes",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        3000,
+        787
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Change the existing minutes draft as the user asks (for example: action 3 is due Friday, add Marie to attendees). Input: changes = the user's request in full.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "MPallInOne000001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "minutes",
+            "sessionId": "={{ $('Build agent input').first().json.sessionId }}",
+            "title": "",
+            "date": "",
+            "attendees": "",
+            "changes": "={{ $fromAI('changes', 'The change the user asked for, in full', 'string') }}",
+            "action": "",
+            "query": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "sessionId",
+              "displayName": "sessionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "attendees",
+              "displayName": "attendees",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "changes",
+              "displayName": "changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "6e9e4536-8fb3-4774-8439-1f5a1e9a53f6",
+      "name": "change_minutes",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        3150,
+        787
+      ]
+    },
+    {
+      "parameters": {
+        "description": "The user approved the draft: send the minutes by email, create one Google Task per action, add deadlines and the next meeting to Google Calendar, save everything in the meeting register. ONLY when the user clearly approves.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "MPallInOne000001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "approve",
+            "sessionId": "={{ $('Build agent input').first().json.sessionId }}",
+            "title": "",
+            "date": "",
+            "attendees": "",
+            "changes": "",
+            "action": "",
+            "query": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "sessionId",
+              "displayName": "sessionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "attendees",
+              "displayName": "attendees",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "changes",
+              "displayName": "changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "d0472925-89e2-4869-9331-cc350c901fd1",
+      "name": "approve_minutes",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        787
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Look up information. action = 'tasks' (open tasks), 'calendar' (upcoming meetings and deadlines) or 'register' (past meetings and decisions; query = keywords).",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "MPallInOne000001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "lookup",
+            "sessionId": "={{ $('Build agent input').first().json.sessionId }}",
+            "title": "",
+            "date": "",
+            "attendees": "",
+            "changes": "",
+            "action": "={{ $fromAI('action', 'One of: tasks, calendar, register', 'string') }}",
+            "query": "={{ $fromAI('query', 'Keywords for the register search, else empty string', 'string', '') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "sessionId",
+              "displayName": "sessionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "attendees",
+              "displayName": "attendees",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "changes",
+              "displayName": "changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "916935fb-09d9-43ba-b9b7-7c9ae0352dc7",
+      "name": "lookup",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        3450,
+        787
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Prepare the draft agenda (ordre du jour) for the next meeting from postponed topics and open tasks.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "MPallInOne000001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "agenda",
+            "sessionId": "={{ $('Build agent input').first().json.sessionId }}",
+            "title": "",
+            "date": "",
+            "attendees": "",
+            "changes": "",
+            "action": "",
+            "query": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "sessionId",
+              "displayName": "sessionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "attendees",
+              "displayName": "attendees",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "changes",
+              "displayName": "changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "d981459f-7b13-4564-a856-3dd7c5d7aef4",
+      "name": "prepare_agenda",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        3600,
+        787
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Answer for the chat page + the list of tools the agent used (shown under the answer).\nconst out = $input.first().json;\nconst steps = (out.intermediateSteps || []).map((s) => ({\n  tool: s.action?.tool,\n  input: s.action?.toolInput,\n  result: String(typeof s.observation === 'string' ? s.observation : JSON.stringify(s.observation)).slice(0, 600),\n}));\n// A small model can answer as if a failed tool had worked, or claim an action without any tool:\n// say so under the answer.\nconst failed = steps.filter((s) => /\"error\"|^Error|error:/i.test(s.result));\nlet reply = out.output || '';\nif (failed.length) reply += `\\n\\nWarning: ${failed.map((s) => s.tool).join(', ')} failed, so this answer may be wrong. See the step details.`;\nconst claimsAction = /\\b(updated|changed|corrected|fixed|sent|emailed|created|added|saved)\\b|(modifi|corrig|envoy|cré|ajout|enregistr)(é|e)/i;\nif (!steps.length && claimsAction.test(reply)) reply += '\\n\\n(Note: no tool ran in this turn, so nothing was changed, sent or saved just now.)';\nreturn [{ json: { reply, steps } }];"
+      },
+      "id": "85a59693-895d-4bd4-a634-59de5915fbe7",
+      "name": "Format reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3400,
+        427
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Prepare input').first().json.sessionId, step: \"Answer ready\", status: \"done\", detail: String($json.steps.length ? 'tools used: ' + $json.steps.map(s => s.tool).join(', ') : 'no tool needed'), source: 'n8n' }) }}"
+      },
+      "id": "9a424998-a781-4917-90fc-168492d48434",
+      "name": "Log: answer ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3980,
+        307
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const err = $input.first().json.error;\nconst text = typeof err === 'string' ? err : (err?.message || JSON.stringify($input.first().json).slice(0, 300));\nreturn [{ json: { reply: `Sorry, the AI step failed: ${text}. Is Ollama running with the model downloaded?`, steps: [], error: text } }];"
+      },
+      "id": "12e3d21f-3e4f-402a-8f57-1ecccb496ffb",
+      "name": "Error reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3400,
+        607
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Prepare input').first().json.sessionId, step: String($json.reply.startsWith('Approval stopped') ? 'Approval stopped' : ($json.reply.startsWith('Could not write the minutes') ? 'Writing the minutes failed' : 'AI agent failed')), status: \"error\", detail: String($json.error), source: 'n8n' }) }}"
+      },
+      "id": "0dab5a05-f20e-4653-b6dc-07fc783777be",
+      "name": "Log: agent failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4240,
+        307
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      },
+      "id": "128f8d6d-9a91-4542-b576-b7627f35c1c8",
+      "name": "Send answer to chat",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        4110,
+        507
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 3,
+        "output": "={{ $json.route }}"
+      },
+      "id": "2fd1f669-e8fe-4387-8ab0-5655ad69b220",
+      "name": "Approve, minutes or AI?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2260,
+        507
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "MPallInOne000001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "approve",
+            "sessionId": "={{ $('Build agent input').first().json.sessionId }}",
+            "title": "",
+            "date": "",
+            "attendees": "",
+            "changes": "",
+            "action": "",
+            "query": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "sessionId",
+              "displayName": "sessionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "attendees",
+              "displayName": "attendees",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "changes",
+              "displayName": "changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "6a209ce9-588b-4cb3-91a4-005899f4b526",
+      "name": "Approve directly",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2700,
+        1352
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Same shape as the agent's answer, so the page shows the tool that ran.\nconst sessionId = $('Build agent input').first().json.sessionId;\nconst result = String($input.first().json.result || 'Approved.');\nconst reply = result.replace(/\\s*Tell the user in short\\.?\\s*$/, '');\nreturn [{ json: { reply, steps: [{ tool: 'approve_minutes', input: { sessionId }, result: result.slice(0, 600) }] } }];"
+      },
+      "id": "d9480b41-b5f4-47c6-8690-b0e3ea72d52b",
+      "name": "Approval reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        1272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const err = $input.first().json.error;\nconst text = (typeof err === 'string' ? err : (err?.message || JSON.stringify($input.first().json).slice(0, 300)))\n  .replace(/\\s*\\[line \\d+\\]/, '');\nconst hint = /access token|oauth|credential/i.test(text)\n  ? ' Google is not connected yet: in n8n open Credentials and click \"Sign in with Google\" on the Gmail, Tasks, Calendar and Sheets credentials.'\n  : '';\nconst retry = /already approved/i.test(text) ? ''\n  : ' What was already done is saved: after fixing the problem, approve again and nothing is sent twice.';\nreturn [{ json: { reply: `Approval stopped: ${text}.${retry}${hint}`, steps: [], error: text } }];"
+      },
+      "id": "9b1fd1d1-6556-417a-a243-faf991ca6ceb",
+      "name": "Approval error reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        1432
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "MPallInOne000001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job": "minutes",
+            "sessionId": "={{ $('Build agent input').first().json.sessionId }}",
+            "title": "",
+            "date": "",
+            "attendees": "",
+            "changes": "",
+            "action": "",
+            "query": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job",
+              "displayName": "job",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "sessionId",
+              "displayName": "sessionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "attendees",
+              "displayName": "attendees",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "changes",
+              "displayName": "changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "2881a3e8-83d7-4610-acd1-beae3718c119",
+      "name": "Make minutes directly",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2700,
+        1672
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Same shape as the agent's answer, so the page shows the tool that ran.\nconst sessionId = $('Build agent input').first().json.sessionId;\nconst result = String($input.first().json.result || '');\nconst reply = result\n  .replace(/^Draft saved and already shown to the user in the chat:\\s*/, 'The minutes draft is ready: ')\n  .replace(/\\s*Tell the user\\.?/, '')\n  .replace(/\\s*Ask the user to approve it.*$/, ' Check it, then click **Approve and send**, or tell me what to change.');\nreturn [{ json: { reply, steps: [{ tool: 'make_minutes', input: { sessionId }, result: result.slice(0, 600) }] } }];"
+      },
+      "id": "eaed45b8-8878-4748-a5c4-899995e08e63",
+      "name": "Minutes reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        1592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const err = $input.first().json.error;\nconst text = (typeof err === 'string' ? err : (err?.message || JSON.stringify($input.first().json).slice(0, 300)))\n  .replace(/\\s*\\[line \\d+\\]/, '');\nreturn [{ json: { reply: `Could not write the minutes: ${text}. Is Ollama running with the model downloaded?`, steps: [], error: text } }];"
+      },
+      "id": "f1e156d1-12bd-41f0-93ed-7ef690c2f6fb",
+      "name": "Minutes error reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        1752
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Tool call').first().json.sessionId, step: \"Writing the minutes draft\", status: \"running\", detail: String($json.changes ? 'change asked: ' + $json.changes : 'from the meeting notes'), source: 'n8n' }) }}"
+      },
+      "id": "433bcf88-4ebf-4c9a-a300-795c21f1b764",
+      "name": "Log: writing minutes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        2667
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $json.sessionId }}/notes?max_words=4500",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "32da133f-5c51-4614-b4f8-0f2e7c244e04",
+      "name": "Get meeting notes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        2867
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Tool call').first().json.sessionId }}/draft",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "4be31591-0824-4ff6-8ae9-f9e92e2d8543",
+      "name": "Get current draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        2867
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ollama structured output: `format` = JSON schema, the model must fill exactly these fields.\nconst input = $('Tool call').first().json;\nconst notes = $('Get meeting notes').first().json;\nconst draft = $input.first().json;\nconst hasDraft = Boolean(draft && draft.markdown);\nconst today = $now.toFormat('yyyy-MM-dd (cccc)');\n\nif (input.changes && !hasDraft) throw new Error('There is no draft to change yet. Make the minutes first.');\nif (!input.changes && !notes.text) throw new Error('No meeting notes in this session yet. Ask the user to send a recording, photos or notes.');\n\nconst SCHEMA = {\n  type: 'object',\n  properties: {\n    title: { type: 'string' },\n    date: { type: 'string' },\n    attendees: { type: 'array', items: { type: 'string' } },\n    summary: { type: 'string' },\n    decisions: { type: 'array', items: { type: 'string' } },\n    actions: { type: 'array', items: { type: 'object', properties: {\n      what: { type: 'string' }, owner: { type: 'string' }, due_date: { type: 'string' } },\n      required: ['what', 'owner', 'due_date'] } },\n    postponed: { type: 'array', items: { type: 'string' } },\n    next_meeting: { type: 'object', properties: { date: { type: 'string' }, time: { type: 'string' } },\n      required: ['date', 'time'] },\n  },\n  required: ['title', 'date', 'attendees', 'summary', 'decisions', 'actions', 'postponed', 'next_meeting'],\n};\n\n// Language of the notes, guessed from common short words. Told to the model explicitly:\n// with only a rule like \"same language as the notes\" it translated a German photo into French.\nconst sourceText = input.changes ? JSON.stringify(draft) : notes.text;\nconst tokens = String(sourceText).toLowerCase().match(/[a-zäöüßàâçéèêëîïôûù]+/g) || [];\nconst STOP = {\n  English: ['the', 'and', 'to', 'of', 'is', 'we', 'will', 'for', 'with', 'by', 'next', 'meeting'],\n  French: ['le', 'la', 'les', 'et', 'des', 'du', 'pour', 'avec', 'est', 'une', 'réunion', 'prochaine'],\n  German: ['der', 'die', 'das', 'und', 'ist', 'mit', 'für', 'bis', 'wer', 'was', 'nicht', 'aufstellen'],\n};\nconst score = Object.fromEntries(Object.entries(STOP).map(([l, w]) => [l, tokens.filter((t) => w.includes(t)).length]));\n// accents are a strong hint on boards with only headings and names\nscore.French += tokens.filter((t) => /[éèêàçùûôîë]/.test(t)).length;\nscore.German += tokens.filter((t) => /[äöüß]/.test(t)).length;\nconst best = Object.keys(score).sort((a, b) => score[b] - score[a])[0];\nconst language = score[best] > 0 ? best : '';\nconst fromPhoto = /### photo text/.test(String(notes.text || ''));\n\nconst system = [\n  'You are a meeting secretary. You write clear, short meeting minutes from raw notes,',\n  'audio transcripts and text read from whiteboard photos.',\n  'Rules:',\n  '- Use only facts from the notes. Never invent names, numbers, dates or decisions.',\n  language ? `- The notes are in ${language}. Write every text field in ${language}. Never translate.`\n    : '- Write every text field in the same language as the notes. Never translate.',\n  '- attendees: only people the notes say were present (for example after \"Present:\", \"Présents :\", \"Anwesend:\"),',\n  '  or people who speak in a transcript. If the notes do not say who was there, return an empty list.',\n  '- summary: 3 to 6 sentences.',\n  '- decisions: what the group agreed, one short sentence each. A task with an owner is an action, not a decision.',\n  '- actions: only tasks someone must do after the meeting. A topic or heading is not an action,',\n  '  and an agenda point (\"tool training\", \"get to know each other\") is not an action.',\n  '  what = starts with a verb. owner = the person or team written next to that task in the notes, else \"unassigned\".',\n  '  A topic, heading or department name of the agenda is never an owner.',\n  `  due_date = YYYY-MM-DD if a deadline was said (today is ${today}; turn \"next Friday\" into a date), else \"\".`,\n  '- postponed: topics discussed but not finished, or moved to a later meeting.',\n  '- Put each item in one list only: never repeat an action as a postponed topic.',\n  '- Whiteboard photos often show only topic headings: then describe them in the summary and leave actions empty.',\n  '- next_meeting: date YYYY-MM-DD and time HH:MM if decided, else empty strings.',\n  `- date: the meeting date YYYY-MM-DD; if unknown use ${today.slice(0, 10)}.`,\n  '- Transcripts contain recognition mistakes and tags like {vocalsound} or {disfmarker}: ignore them.',\n  ...(fromPhoto ? [\n    '- Part of the notes was read from a photo of a board or notebook. A photo does not show who was in the room:',\n    '  leave attendees empty unless the board itself lists the people present. Names next to tasks are owners.',\n  ] : []),\n].join('\\n');\n\nlet user;\nif (input.changes) {\n  const { title, date, attendees, summary, decisions, actions, postponed, next_meeting } = draft;\n  user = `Current minutes (JSON):\\n${JSON.stringify({ title, date, attendees, summary, decisions, actions, postponed, next_meeting })}\\n\\n`\n    + `Apply this change and return the full updated minutes: ${input.changes}`;\n} else {\n  user = `Meeting title: ${input.title || '(find it in the notes)'}\\n`\n    + `Meeting date: ${input.date || '(find it in the notes)'}\\n`\n    + `Attendees: ${input.attendees || '(find them in the notes)'}\\n\\nMeeting notes:\\n${notes.text}`;\n}\n\nreturn [{ json: {\n  body: {\n    model: $env.MINUTEPILOT_TEXT_MODEL,\n    stream: false,\n    format: SCHEMA,\n    options: { temperature: 0.2, num_ctx: Number($env.MINUTEPILOT_NUM_CTX) || 8192 },\n    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],\n  },\n  notesInfo: (input.changes ? 'changing the current draft'\n    : `${notes.words} words of notes` + (notes.truncated ? ` — too long, using only the first ${notes.used_words}` : ''))\n    + ` · language: ${language || 'not sure'}`,\n} }];"
+      },
+      "id": "dc70d3c3-7365-4d40-8084-acf053d1fe24",
+      "name": "Build prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        2867
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Tool call').first().json.sessionId, step: \"AI is writing the minutes\", status: \"running\", detail: String($json.notesInfo + ' · model ' + $env.MINUTEPILOT_TEXT_MODEL), source: 'n8n' }) }}"
+      },
+      "id": "ca96a97e-3220-459e-b199-711c9b685b67",
+      "name": "Log: asking the AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        2667
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_OLLAMA_URL }}/api/chat",
+        "options": {
+          "timeout": 900000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
+      },
+      "id": "017bacd7-26ca-440f-bb60-87abb23ce008",
+      "name": "Ollama: write minutes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        2867
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the model's JSON, clean it, and render the Markdown the chat page and the email show.\nconst input = $('Tool call').first().json;\nconst old = $('Get current draft').first().json;\nlet m;\ntry { m = JSON.parse($input.first().json.message.content); }\ncatch (e) { throw new Error('The AI did not return valid JSON. Try again.'); }\n\nconst list = (a) => (Array.isArray(a) ? a : []).map((x) => String(x).trim()).filter(Boolean);\nconst isDate = (d) => /^\\d{4}-\\d{2}-\\d{2}$/.test(String(d || ''));\nconst draft = {\n  title: String(m.title || input.title || 'Meeting').trim(),\n  date: isDate(m.date) ? m.date : (isDate(input.date) ? input.date : $now.toFormat('yyyy-MM-dd')),\n  attendees: list(m.attendees),\n  summary: String(m.summary || '').trim(),\n  decisions: list(m.decisions),\n  actions: (Array.isArray(m.actions) ? m.actions : []).filter((a) => a && a.what).map((a) => ({\n    what: String(a.what).trim(),\n    owner: String(a.owner || 'unassigned').trim() || 'unassigned',\n    due_date: isDate(a.due_date) ? a.due_date : '',\n  })),\n  postponed: list(m.postponed),\n  next_meeting: { date: isDate(m.next_meeting?.date) ? m.next_meeting.date : '', time: String(m.next_meeting?.time || '') },\n};\n// A name must appear in what the user gave us (notes, the change asked, the previous draft):\n// the model sometimes invents attendees (\"Alice, Bob…\") for a photo. Unknown names are removed.\nconst norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');\nconst source = norm([$('Get meeting notes').first().json.text, input.changes, input.attendees,\n  input.changes ? JSON.stringify({ a: old.attendees, o: (old.actions || []).map((a) => a.owner) }) : ''].join('\\n'));\nconst known = (name) => norm(name).split(/[^a-z0-9]+/).some((t) => t.length >= 3 && source.includes(t));\nconst removed = [];\ndraft.attendees = draft.attendees.filter((n) => known(n) || !removed.push(n));\nfor (const a of draft.actions) {\n  if (a.owner !== 'unassigned' && !known(a.owner)) { removed.push(a.owner); a.owner = 'unassigned'; }\n}\ndraft.removed_names = [...new Set(removed)];\n\n// The model often repeats each task (\"Paul will send the design…\") or postponed topic as a decision.\n// Drop such a decision: it names the task's owner and has most of the task's words, or it is a postponed topic.\nconst stems = (s) => norm(s).split(/[^a-z0-9]+/).filter((t) => t.length >= 4).map((t) => t.slice(0, 5));\nconst covers = (text, item) => {\n  const want = stems(item); const have = new Set(stems(text));\n  return want.length > 0 && want.filter((x) => have.has(x)).length / want.length >= 0.6;\n};\ndraft.decisions = draft.decisions.filter((d) =>\n  !draft.actions.some((a) => a.owner !== 'unassigned' && norm(d).includes(norm(a.owner)) && covers(d, a.what))\n  && !draft.postponed.some((p) => covers(d, p)));\n\nconst slug = draft.title.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);\ndraft.meeting_id = (input.changes && old.meeting_id) ? old.meeting_id : `${draft.date}-${slug}-${$now.toFormat('HHmmss')}`;\n\nconst md = [`# ${draft.title}`, '', `**Date:** ${draft.date}`,\n  `**Attendees:** ${draft.attendees.join(', ') || '(not given)'}`, '', '## Summary', draft.summary || '(none)', '',\n  '## Decisions', ...(draft.decisions.length ? draft.decisions.map((d) => `- ${d}`) : ['- (none)']), '',\n  '## Actions', ...(draft.actions.length\n    ? draft.actions.map((a, i) => `${i + 1}. ${a.what} — **${a.owner}**${a.due_date ? ` — due ${a.due_date}` : ''}`)\n    : ['- (none)']), '',\n  '## Postponed topics', ...(draft.postponed.length ? draft.postponed.map((p) => `- ${p}`) : ['- (none)']), '',\n  '## Next meeting', draft.next_meeting.date ? `${draft.next_meeting.date} ${draft.next_meeting.time}`.trim() : '(not decided)'];\ndraft.markdown = md.join('\\n');\nreturn [{ json: draft }];"
+      },
+      "id": "e4204518-56f2-4599-ac1e-d22145cb80de",
+      "name": "Make draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        2867
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Tool call').first().json.sessionId }}/draft",
+        "options": {
+          "timeout": 60000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "685158f5-0bed-4395-8e82-ff589ad11d19",
+      "name": "Save draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        2867
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Tool call').first().json.sessionId, step: \"Draft ready \\u2014 waiting for your approval\", status: \"done\", detail: String(`${$json.decisions.length} decisions, ${$json.actions.length} actions, ${$json.postponed.length} postponed topics` + ($json.removed_names && $json.removed_names.length ? ` · names removed (not in the notes): ${$json.removed_names.join(', ')}` : '')), source: 'n8n' }) }}"
+      },
+      "id": "e8e38ce8-25e2-4c97-9aca-154261d3c800",
+      "name": "Log: draft ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2280,
+        2667
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst count = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;\nconst removed = (d.removed_names || []).length\n  ? ` Names not found in the notes were removed: ${d.removed_names.join(', ')}. Tell the user.` : '';\nreturn [{ json: { result: `Draft saved and already shown to the user in the chat: \"${d.title}\" (${d.date}), `\n  + `${count(d.decisions.length, 'decision')}, ${count(d.actions.length, 'action')}, `\n  + `${count(d.postponed.length, 'postponed topic')}.${removed} `\n  + 'Ask the user to approve it or to say what to change. Do not repeat the draft.' } }];"
+      },
+      "id": "36a1470a-16b7-4539-abb6-3754d4bfbddf",
+      "name": "Answer for the agent (minutes)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        2867
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Tool call').first().json.sessionId, step: \"You approved the minutes: sending and creating tasks\", status: \"running\", detail: String(''), source: 'n8n' }) }}"
+      },
+      "id": "5735a452-84af-4551-8316-941717855b01",
+      "name": "Log: approved",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        3874
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $json.sessionId }}/draft",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "82d922c8-1b9a-4a8e-b50b-37ef4c30c9ed",
+      "name": "Get draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        4074
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same copy in each Code node that needs them) ----\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nfunction mdToHtml(md) {\n  const out = []; let list = null;\n  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };\n  const inline = (s) => esc(s).replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>');\n  for (const line of String(md).split('\\n')) {\n    let m;\n    if ((m = line.match(/^(#{1,3})\\s+(.*)/))) { close(); const n = m[1].length; out.push(`<h${n}>${inline(m[2])}</h${n}>`); }\n    else if ((m = line.match(/^\\s*[-*]\\s+(.*)/))) { if (list !== 'ul') { close(); list = 'ul'; out.push('<ul>'); } out.push(`<li>${inline(m[1])}</li>`); }\n    else if ((m = line.match(/^\\s*\\d+[.)]\\s+(.*)/))) { if (list !== 'ol') { close(); list = 'ol'; out.push('<ol>'); } out.push(`<li>${inline(m[1])}</li>`); }\n    else if (!line.trim()) close();\n    else { close(); out.push(`<p>${inline(line)}</p>`); }\n  }\n  close();\n  return `<div style=\"font-family:Arial,sans-serif;font-size:14px;line-height:1.5\">${out.join('\\n')}</div>`;\n}\n\nconst draft = $input.first().json;\nif (draft.status === 'approved') throw new Error('These minutes were already approved and sent.');\n\n// SAFETY: test mode. Every attendee gets an alias of the owner's own Gmail (owner+name@gmail.com).\nconst owner = String($env.MINUTEPILOT_OWNER_EMAIL || '').trim().toLowerCase();\nconst [local, domain] = owner.split('@');\nif (!local || !domain) throw new Error('MINUTEPILOT_OWNER_EMAIL is not set in docker/.env');\nconst slug = (name) => name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '').slice(0, 20);\nconst emails = [owner, ...draft.attendees.map(slug).filter(Boolean).map((s) => `${local}+${s}@${domain}`)];\nconst allowed = new RegExp(`^${local.replace(/[.]/g, '\\\\.')}(\\\\+[a-z0-9]+)?@${domain.replace(/[.]/g, '\\\\.')}$`);\nfor (const e of emails) if (!allowed.test(e)) throw new Error(`Blocked email address: ${e}`);\n\nconst to = [...new Set(emails)];\nconst ownerEmail = (name) => (slug(name) && slug(name) !== 'unassigned' ? `${local}+${slug(name)}@${domain}` : owner);\n// Steps an earlier approval already did before it failed: skipped, so a retry sends nothing twice.\nreturn [{ json: {\n  draft,\n  done: draft.done || {},\n  to: to.join(', '),\n  toCount: to.length,\n  subject: `Minutes: ${draft.title} (${draft.date})`,\n  html: mdToHtml(draft.markdown) + '<p style=\"color:#888;font-size:12px\">Sent by MinutePilot after approval.</p>',\n  ownerEmails: Object.fromEntries(draft.actions.map((a) => [a.owner, ownerEmail(a.owner)])),\n} }];"
+      },
+      "id": "5f2b921c-6cc4-4aec-80fc-13b5f630fd6b",
+      "name": "Check draft and recipients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        4074
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "MinutePilot"
+        }
+      },
+      "id": "3fe57bee-d679-41c2-b26d-05693bbd02d2",
+      "name": "Send minutes email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        840,
+        4024
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "MPgmail000000001",
+          "name": "Gmail (MinutePilot)"
+        }
+      },
+      "webhookId": "c5ff1395-94f5-45e4-8fd3-674f165dc170"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Tool call').first().json.sessionId, step: \"Minutes emailed\", status: \"done\", detail: String('to ' + $('Check draft and recipients').first().json.to), source: 'n8n' }) }}"
+      },
+      "id": "f33c321b-3da5-48ef-a907-6635bb7fc94e",
+      "name": "Log: email sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        3874
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const { draft, done } = $('Check draft and recipients').first().json;\nconst made = done.tasks || {};\nreturn draft.actions.map((a, index) => ({ a, index })).filter(({ index }) => !made[index]).map(({ a, index }) => ({ json: {\n  title: a.what,\n  notes: `Owner: ${a.owner}\nFrom meeting: ${draft.title} (${draft.date})`,\n  // Google Tasks wants RFC 3339 with a time zone and keeps only the date part\n  due: a.due_date ? `${a.due_date}T00:00:00.000Z` : '',\n  index,\n} }));"
+      },
+      "id": "27bad364-a7cb-441b-8161-a42ecab73606",
+      "name": "One item per action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        4274
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "create",
+        "task": "@default",
+        "title": "={{ $json.title }}",
+        "additionalFields": {
+          "notes": "={{ $json.notes }}",
+          "dueDate": "={{ $json.due }}"
+        }
+      },
+      "id": "4336a250-564d-4007-9e25-c0fd66ba0fbb",
+      "name": "Create task",
+      "type": "n8n-nodes-base.googleTasks",
+      "typeVersion": 1,
+      "position": [
+        840,
+        4274
+      ],
+      "credentials": {
+        "googleTasksOAuth2Api": {
+          "id": "MPtasks000000001",
+          "name": "Google Tasks (MinutePilot)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Own branch, after the tasks branch: one row per action with the task id from this try\n// or from an earlier one that failed later on.\nconst { draft, done, ownerEmails } = $('Check draft and recipients').first().json;\nif (done.action_rows) return [];\nconst ids = { ...(done.tasks || {}) };\ntry {\n  const asked = $('One item per action').all();\n  $('Create task').all().forEach((t, i) => { if (t.json.id) ids[asked[i].json.index] = t.json.id; });\n} catch (e) { /* no task created in this try */ }\nreturn draft.actions.map((a, i) => ({ json: {\n  meeting_id: draft.meeting_id, meeting_date: draft.date, action: a.what, owner: a.owner,\n  owner_email: ownerEmails[a.owner] || '', due_date: a.due_date, task_id: ids[i] || '',\n  created_at: $now.toISO(),\n} }));"
+      },
+      "id": "eb8b4759-1441-4131-9164-6691a294bd1e",
+      "name": "Action rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        4474
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MINUTEPILOT_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Actions"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        }
+      },
+      "id": "b55c571a-8c93-45d4-89b0-c0152d1271b0",
+      "name": "Register: actions",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        840,
+        4474
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MPsheets00000001",
+          "name": "Google Sheets (MinutePilot)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Tool call').first().json.sessionId, step: \"Google Tasks created\", status: \"done\", detail: String($('Action rows').all().length + ' actions with a Google Task, saved in the register'), source: 'n8n' }) }}"
+      },
+      "id": "935da330-0081-4f9d-b385-946df1315241",
+      "name": "Log: tasks created",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        4474
+      ],
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deadlines (09:00-09:30 on the due date) + the next meeting if one was decided.\nconst { draft, done } = $('Check draft and recipients').first().json;\nconst items = draft.actions.filter((a) => a.due_date).map((a) => ({\n  summary: `Deadline: ${a.what} (${a.owner})`,\n  start: `${a.due_date}T09:00:00`, end: `${a.due_date}T09:30:00`,\n  description: `From meeting: ${draft.title} (${draft.date})`,\n}));\nconst nm = draft.next_meeting || {};\nif (nm.date) {\n  const time = /^\\d{2}:\\d{2}$/.test(nm.time) ? nm.time : '10:00';\n  const [h, m] = time.split(':').map(Number);\n  const end = `${String(h + 1).padStart(2, '0')}:${String(m).padStart(2, '0')}`;\n  items.push({ summary: `Next meeting: ${draft.title}`, start: `${nm.date}T${time}:00`, end: `${nm.date}T${end}:00`,\n    description: `Postponed topics:\\n${draft.postponed.map((p) => '- ' + p).join('\\n') || '(none)'}` });\n}\n// skip events an earlier try already created\nconst made = done.calendar || {};\nreturn items.map((json, index) => ({ json: { ...json, index } })).filter((i) => !made[i.json.index]);"
+      },
+      "id": "3ded861e-4e5a-4647-9e28-9b625798cf75",
+      "name": "Calendar items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        4694
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MINUTEPILOT_OWNER_EMAIL }}"
+        },
+        "start": "={{ $json.start }}",
+        "end": "={{ $json.end }}",
+        "useDefaultReminders": true,
+        "additionalFields": {
+          "summary": "={{ $json.summary }}",
+          "description": "={{ $json.description }}"
+        }
+      },
+      "id": "a34c1ce9-075d-4701-b45a-0846ec83faf3",
+      "name": "Create calendar event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        840,
+        4694
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "MPcalendar000001",
+          "name": "Google Calendar (MinutePilot)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Tool call').first().json.sessionId, step: \"Calendar events created\", status: \"done\", detail: String($('Create calendar event').all().length + ' events'), source: 'n8n' }) }}"
+      },
+      "id": "86b6592e-116c-4292-8203-ffe99648641c",
+      "name": "Log: calendar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        4694
+      ],
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const { draft, done } = $('Check draft and recipients').first().json;\nif (done.postponed) return [];\nreturn draft.postponed.map((topic) => ({ json: {\n  meeting_id: draft.meeting_id, meeting_date: draft.date, topic, status: 'open' } }));"
+      },
+      "id": "4aad6da4-ddd1-4955-a39b-d679c6ea0e82",
+      "name": "Postponed rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        4914
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MINUTEPILOT_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Postponed"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        }
+      },
+      "id": "2b1259a0-9ce5-4c90-8e31-5da2cff00f43",
+      "name": "Register: postponed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        840,
+        4914
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MPsheets00000001",
+          "name": "Google Sheets (MinutePilot)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { draft, done } = $('Check draft and recipients').first().json;\nif (done.register) return [];\nreturn [{ json: {\n  meeting_id: draft.meeting_id, date: draft.date, title: draft.title, attendees: draft.attendees.join(', '),\n  summary: draft.summary, decisions: draft.decisions.join(' | '), postponed: draft.postponed.join(' | '),\n  next_meeting: `${draft.next_meeting.date} ${draft.next_meeting.time}`.trim(), approved_at: $now.toISO(),\n} }];"
+      },
+      "id": "edb6979e-fbee-4b1b-baeb-028d917a5f78",
+      "name": "Meeting row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        5114
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MINUTEPILOT_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Meetings"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        }
+      },
+      "id": "6c7f3814-896b-4fa0-945a-ba6ef51e0e74",
+      "name": "Register: meeting",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        840,
+        5114
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MPsheets00000001",
+          "name": "Google Sheets (MinutePilot)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Tool call').first().json.sessionId }}/draft/approve",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "a00ab171-5e82-4f46-8961-4adc6c0990c0",
+      "name": "Mark draft approved",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        5474
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Tool call').first().json.sessionId, step: \"Everything done: email, tasks, calendar, register\", status: \"done\", detail: String(''), source: 'n8n' }) }}"
+      },
+      "id": "e87daf42-7620-4435-a9c3-613f7f12fd1b",
+      "name": "Log: done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        5324
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const count = (name) => { try { return $(name).all().length; } catch (e) { return 0; } };\nconst c = $('Check draft and recipients').first().json;\nconst before = Object.keys(c.done);\nreturn [{ json: { result: (c.done.email ? 'The email had already been sent by the earlier try. '\n  : `Done. Minutes emailed to ${c.toCount} address(es) (${c.to}). `)\n  + `${count('Create task')} Google Tasks and ${count('Create calendar event')} calendar events created. `\n  + 'The meeting is saved in the register (Google Sheets). '\n  + (before.length ? `Skipped because already done before: ${before.join(', ')}. ` : '')\n  + 'Tell the user in short.' } }];"
+      },
+      "id": "bd8f728d-5bdc-47b1-a4c3-deabea46b2dc",
+      "name": "Answer for the agent (approve)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        5474
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Skip the email if an earlier try already sent it\nconst c = $input.first().json;\nreturn c.done.email ? [] : [$input.first()];"
+      },
+      "id": "819a0af7-8cfd-4f67-8f2e-dfc605ddf2dd",
+      "name": "Email needed?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        4024
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Tool call').first().json.sessionId }}/draft/done",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ step: 'email', value: true }) }}"
+      },
+      "id": "ca044a21-a61a-4042-ae7f-aecaf4722361",
+      "name": "Record: email sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        4024
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Tool call').first().json.sessionId }}/draft/done",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ step: 'tasks', value: Object.fromEntries($('Create task').all().map((t, i) => [$('One item per action').all()[i].json.index, t.json.id]).filter(([, id]) => id)) }) }}"
+      },
+      "id": "7d31d6c1-8f21-4cb7-89c4-ff989227b41f",
+      "name": "Record: tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        4274
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Tool call').first().json.sessionId }}/draft/done",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ step: 'calendar', value: Object.fromEntries($('Create calendar event').all().map((e, i) => [$('Calendar items').all()[i].json.index, e.json.id]).filter(([, id]) => id)) }) }}"
+      },
+      "id": "693e0a5c-5c13-4345-8aa4-b2c63ec6b04b",
+      "name": "Record: calendar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        4694
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Tool call').first().json.sessionId }}/draft/done",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ step: 'postponed', value: true }) }}"
+      },
+      "id": "33065c75-be8b-45cf-90b0-ddd29e8715c3",
+      "name": "Record: postponed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        4914
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Tool call').first().json.sessionId }}/draft/done",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ step: 'register', value: true }) }}"
+      },
+      "id": "44347f77-9098-4d5a-8769-77c6a422c35a",
+      "name": "Record: register",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        5114
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [$('Check draft and recipients').first()];"
+      },
+      "id": "cf3a7cee-67c5-4dd8-96a5-b0816af2ee01",
+      "name": "All steps done",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        5474
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// After recording what worked: stop here if one item failed, so the minutes stay unapproved\nconst failed = $('Create task').all().filter((i) => i.json.error);\nif (failed.length) throw new Error(`Create task: ${failed.length} failed: ${JSON.stringify(failed[0].json.error).slice(0, 200)}`);\nreturn $input.all();"
+      },
+      "id": "c6759864-9265-486e-baea-8d7b079c1500",
+      "name": "Tasks all created?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        4274
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// After recording what worked: stop here if one item failed, so the minutes stay unapproved\nconst failed = $('Create calendar event').all().filter((i) => i.json.error);\nif (failed.length) throw new Error(`Create calendar event: ${failed.length} failed: ${JSON.stringify(failed[0].json.error).slice(0, 200)}`);\nreturn $input.all();"
+      },
+      "id": "775e1b8a-c09a-487a-a81a-39b8b2a54b83",
+      "name": "Events all created?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        4694
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/api/sessions/{{ $('Tool call').first().json.sessionId }}/draft/done",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ step: 'action_rows', value: true }) }}"
+      },
+      "id": "b6dbc568-160d-4225-81b1-0c7cbcc13426",
+      "name": "Record: action rows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        4474
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "f5aa3380-3993-400a-9e80-dab87f8b95dc",
+      "name": "Every day at 8:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1880,
+        4032
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sessionId = $input.first().json.sessionId || '';\nreturn [{ json: { sessionId, mode: sessionId ? 'chat' : 'email', daysAhead: sessionId ? 60 : 3 } }];"
+      },
+      "id": "721f22db-02f6-49f4-9df5-a4eb74eccb09",
+      "name": "Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        4132
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Settings').first().json.sessionId || 'daily-jobs', step: \"Preparing the agenda\", status: \"running\", detail: String(''), source: 'n8n' }) }}"
+      },
+      "id": "962ca0e4-7114-4bfd-ad51-d0bdeab53e89",
+      "name": "Log: agenda",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2320,
+        3932
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MINUTEPILOT_OWNER_EMAIL }}"
+        },
+        "limit": 10,
+        "timeMin": "={{ $now }}",
+        "timeMax": "={{ $now.plus($('Settings').first().json.daysAhead, 'days') }}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "id": "d721c786-69df-40e9-a22e-b7f5b30f423b",
+      "name": "Upcoming meetings",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        2320,
+        4132
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "MPcalendar000001",
+          "name": "Google Calendar (MinutePilot)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// email mode: only a meeting that starts in exactly 2 days. chat mode: the next event, if any.\nconst s = $('Settings').first().json;\nconst events = $input.all().map((i) => i.json).filter((e) => e.id && !String(e.summary || '').startsWith('Deadline:'));\nconst startOf = (e) => e.start?.dateTime || e.start?.date || '';\nlet meeting = events[0] || null;\nif (s.mode === 'email') {\n  // object form: in Code nodes plus(2, 'days') would add 2 milliseconds\nconst target = $now.plus({ days: 2 }).toFormat('yyyy-MM-dd');\n  meeting = events.find((e) => startOf(e).slice(0, 10) === target) || null;\n  if (!meeting) return []; // nothing to prepare today\n}\nreturn [{ json: { meeting: meeting ? { title: meeting.summary || 'Meeting', start: startOf(meeting) } : null } }];"
+      },
+      "id": "18fa125a-f8e4-4317-97c7-4f15925909b8",
+      "name": "Pick meeting",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2540,
+        4132
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "getAll",
+        "task": "@default",
+        "returnAll": true,
+        "additionalFields": {
+          "showCompleted": false
+        }
+      },
+      "id": "877adfc1-d660-4d97-9889-742addb0a2eb",
+      "name": "Open tasks (agenda)",
+      "type": "n8n-nodes-base.googleTasks",
+      "typeVersion": 1,
+      "position": [
+        2760,
+        4132
+      ],
+      "credentials": {
+        "googleTasksOAuth2Api": {
+          "id": "MPtasks000000001",
+          "name": "Google Tasks (MinutePilot)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MINUTEPILOT_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Postponed"
+        },
+        "options": {}
+      },
+      "id": "60fd0132-c968-4b5d-9b13-534eec1bc238",
+      "name": "Postponed topics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        2980,
+        4132
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MPsheets00000001",
+          "name": "Google Sheets (MinutePilot)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const { meeting } = $('Pick meeting').first().json;\nconst tasks = $('Open tasks (agenda)').all().map((i) => i.json).filter((t) => t.title);\nconst topics = $input.all().map((i) => i.json).filter((r) => r.topic && r.status !== 'closed');\nconst lines = [\n  `Next meeting: ${meeting ? `${meeting.title} on ${meeting.start}` : 'date not set'}`,\n  '', 'Postponed topics from earlier meetings:', ...(topics.length ? topics.map((t) => `- ${t.topic} (from ${t.meeting_date})`) : ['- none']),\n  '', 'Open tasks:', ...(tasks.length ? tasks.map((t) => `- ${t.title}${t.due ? ` (due ${String(t.due).slice(0, 10)})` : ''}`) : ['- none']),\n];\nconst system = 'You prepare the agenda (ordre du jour) of a meeting. Use only the information given. '\n  + 'Write Markdown: a title line \"# Agenda: <meeting>\", then a numbered list: 1. Approval of the last minutes, '\n  + 'then one item per postponed topic, then \"Follow-up of open actions\" with the tasks as sub-bullets, then \"Any other business\". '\n  + 'Write in French if the topics are in French, else English. No extra comments.';\nreturn [{ json: {\n  body: { model: $env.MINUTEPILOT_TEXT_MODEL, stream: false, options: { temperature: 0.2, num_ctx: 4096 },\n    messages: [{ role: 'system', content: system }, { role: 'user', content: lines.join('\\n') }] },\n  meetingTitle: meeting ? meeting.title : 'next meeting', counts: `${topics.length} postponed topics, ${tasks.length} open tasks`,\n} }];"
+      },
+      "id": "0dd60095-b772-41ba-9734-b3b950385969",
+      "name": "Build agenda prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        4132
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_OLLAMA_URL }}/api/chat",
+        "options": {
+          "timeout": 900000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
+      },
+      "id": "e0a5d7b4-ffab-4360-9d3c-cd580d3c8df6",
+      "name": "Ollama: write agenda",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3420,
+        4132
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same copy in each Code node that needs them) ----\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nfunction mdToHtml(md) {\n  const out = []; let list = null;\n  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };\n  const inline = (s) => esc(s).replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>');\n  for (const line of String(md).split('\\n')) {\n    let m;\n    if ((m = line.match(/^(#{1,3})\\s+(.*)/))) { close(); const n = m[1].length; out.push(`<h${n}>${inline(m[2])}</h${n}>`); }\n    else if ((m = line.match(/^\\s*[-*]\\s+(.*)/))) { if (list !== 'ul') { close(); list = 'ul'; out.push('<ul>'); } out.push(`<li>${inline(m[1])}</li>`); }\n    else if ((m = line.match(/^\\s*\\d+[.)]\\s+(.*)/))) { if (list !== 'ol') { close(); list = 'ol'; out.push('<ol>'); } out.push(`<li>${inline(m[1])}</li>`); }\n    else if (!line.trim()) close();\n    else { close(); out.push(`<p>${inline(line)}</p>`); }\n  }\n  close();\n  return `<div style=\"font-family:Arial,sans-serif;font-size:14px;line-height:1.5\">${out.join('\\n')}</div>`;\n}\n\nconst p = $('Build agenda prompt').first().json;\nconst agenda = String($input.first().json.message?.content || '').trim();\nreturn [{ json: { agenda, html: mdToHtml(agenda), subject: `Draft agenda: ${p.meetingTitle}`, counts: p.counts,\n  mode: $('Settings').first().json.mode } }];"
+      },
+      "id": "0f67fb2c-b580-4983-8939-cf72df2f7375",
+      "name": "Agenda",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3640,
+        4132
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $json.mode === 'email' ? 1 : 0 }}"
+      },
+      "id": "503e7e46-c213-4ea5-8207-aabf59fb1662",
+      "name": "Chat or email?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3860,
+        4132
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Settings').first().json.sessionId || 'daily-jobs', step: \"Agenda ready\", status: \"done\", detail: String($json.counts), source: 'n8n' }) }}"
+      },
+      "id": "d121df25-39c5-4223-bc86-d1cea2f75baf",
+      "name": "Log: agenda ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4080,
+        3972
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { result: `Here is the draft agenda. Show it to the user as it is:\\n\\n${$input.first().json.agenda}` } }];"
+      },
+      "id": "3aec8eac-e908-4b54-bb16-8a97f5090880",
+      "name": "Answer for the agent (agenda)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4080,
+        4092
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $env.MINUTEPILOT_OWNER_EMAIL }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "MinutePilot"
+        }
+      },
+      "id": "e9aeef94-fd63-4f84-985c-f9e92dfb4a39",
+      "name": "Email the agenda",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        4080,
+        4292
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "MPgmail000000001",
+          "name": "Gmail (MinutePilot)"
+        }
+      },
+      "webhookId": "58c1522e-22bd-4dfc-a1f7-0bb2d1d21b2c"
+    },
+    {
+      "parameters": {},
+      "id": "b5f235fc-77d1-42e8-bfd3-36aa22e4d17b",
+      "name": "Test now (agenda)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1880,
+        3832
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 8,
+              "triggerAtMinute": 5
+            }
+          ]
+        }
+      },
+      "id": "b04299e1-4516-41dc-99ea-23782a408354",
+      "name": "Every day at 8:05",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        4400,
+        3983
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "getAll",
+        "task": "@default",
+        "returnAll": true,
+        "additionalFields": {
+          "showCompleted": false
+        }
+      },
+      "id": "02aae56c-4a75-4eeb-b0f3-12b448de20c6",
+      "name": "Open tasks (reminders)",
+      "type": "n8n-nodes-base.googleTasks",
+      "typeVersion": 1,
+      "position": [
+        4620,
+        3983
+      ],
+      "credentials": {
+        "googleTasksOAuth2Api": {
+          "id": "MPtasks000000001",
+          "name": "Google Tasks (MinutePilot)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared helpers (same copy in each Code node that needs them) ----\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nfunction mdToHtml(md) {\n  const out = []; let list = null;\n  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };\n  const inline = (s) => esc(s).replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>');\n  for (const line of String(md).split('\\n')) {\n    let m;\n    if ((m = line.match(/^(#{1,3})\\s+(.*)/))) { close(); const n = m[1].length; out.push(`<h${n}>${inline(m[2])}</h${n}>`); }\n    else if ((m = line.match(/^\\s*[-*]\\s+(.*)/))) { if (list !== 'ul') { close(); list = 'ul'; out.push('<ul>'); } out.push(`<li>${inline(m[1])}</li>`); }\n    else if ((m = line.match(/^\\s*\\d+[.)]\\s+(.*)/))) { if (list !== 'ol') { close(); list = 'ol'; out.push('<ol>'); } out.push(`<li>${inline(m[1])}</li>`); }\n    else if (!line.trim()) close();\n    else { close(); out.push(`<p>${inline(line)}</p>`); }\n  }\n  close();\n  return `<div style=\"font-family:Arial,sans-serif;font-size:14px;line-height:1.5\">${out.join('\\n')}</div>`;\n}\n\nconst today = $now.toFormat('yyyy-MM-dd');\nconst due = $input.all().map((i) => i.json).filter((t) => t.title && t.due && String(t.due).slice(0, 10) <= today);\nif (!due.length) return []; // nothing to remind: no email\nconst lines = due.map((t) => {\n  const d = String(t.due).slice(0, 10);\n  return `- ${d < today ? '**LATE** ' : ''}${t.title} — due ${d}${t.notes ? ` (${t.notes.split('\\n')[0]})` : ''}`;\n});\nconst md = [`# Tasks to check today (${today})`, '', ...lines].join('\\n');\nreturn [{ json: { subject: `MinutePilot: ${due.length} task(s) late or due today`, html: mdToHtml(md) } }];"
+      },
+      "id": "0e97953e-1b9f-4529-a64a-34d6051aaff9",
+      "name": "Late or due today",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        3983
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $env.MINUTEPILOT_OWNER_EMAIL }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "MinutePilot"
+        }
+      },
+      "id": "f945166b-858f-4d7a-a6f2-5a8524121889",
+      "name": "Email the reminder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        5060,
+        3983
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "MPgmail000000001",
+          "name": "Gmail (MinutePilot)"
+        }
+      },
+      "webhookId": "4ffe1b65-0321-40e8-ae37-d1744fbcf15a"
+    },
+    {
+      "parameters": {},
+      "id": "a7ae4317-1256-4a40-a562-59b2b20de2b9",
+      "name": "Test now (reminders)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        4400,
+        3783
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MINUTEPILOT_PYTHON_URL }}/events",
+        "options": {
+          "timeout": 5000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sessionId: $('Tool call').first().json.sessionId, step: \"Looking up information\", status: \"running\", detail: String($json.action + ($json.query ? ': ' + $json.query : '')), source: 'n8n' }) }}"
+      },
+      "id": "95d64806-cce0-4e5a-a4a1-2bcafb2f4313",
+      "name": "Log: lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2600,
+        2526
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 4,
+        "output": "={{ ['tasks', 'calendar', 'register'].findIndex(a => String($json.action || '').toLowerCase().includes(a)) === -1 ? 3 : ['tasks', 'calendar', 'register'].findIndex(a => String($json.action || '').toLowerCase().includes(a)) }}"
+      },
+      "id": "d4d36b82-2475-45e7-abda-b729f99da92e",
+      "name": "Which lookup?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2600,
+        2726
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "getAll",
+        "task": "@default",
+        "returnAll": true,
+        "additionalFields": {
+          "showCompleted": false
+        }
+      },
+      "id": "21f01114-07a1-47b8-a905-44960efb8ad0",
+      "name": "Open tasks (lookup)",
+      "type": "n8n-nodes-base.googleTasks",
+      "typeVersion": 1,
+      "position": [
+        2820,
+        2566
+      ],
+      "credentials": {
+        "googleTasksOAuth2Api": {
+          "id": "MPtasks000000001",
+          "name": "Google Tasks (MinutePilot)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const tasks = $input.all().map((i) => i.json).filter((t) => t.title);\nconst text = tasks.length\n  ? tasks.map((t) => `- ${t.title}${t.due ? ` (due ${String(t.due).slice(0, 10)})` : ''}${t.notes ? ` — ${t.notes.split('\\n')[0]}` : ''}`).join('\\n')\n  : 'No open tasks.';\nreturn [{ json: { result: `Open tasks (${tasks.length}):\\n${text}` } }];"
+      },
+      "id": "2bcbe3c4-74bd-48c6-bd5f-d18f4a41261f",
+      "name": "Tasks answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        2566
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MINUTEPILOT_OWNER_EMAIL }}"
+        },
+        "limit": 10,
+        "timeMin": "={{ $now }}",
+        "timeMax": "={{ $now.plus(60, 'days') }}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "id": "5b960f95-ff2c-412e-89c7-79b160d2aae0",
+      "name": "Upcoming events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        2820,
+        2746
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "MPcalendar000001",
+          "name": "Google Calendar (MinutePilot)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ev = $input.all().map((i) => i.json).filter((e) => e.id);\nconst text = ev.length\n  ? ev.map((e) => `- ${(e.start?.dateTime || e.start?.date || '').replace('T', ' ').slice(0, 16)}: ${e.summary || '(no title)'}`).join('\\n')\n  : 'Nothing in the calendar for the next 60 days.';\nreturn [{ json: { result: `Upcoming events:\\n${text}` } }];"
+      },
+      "id": "a3422bf5-02d5-4151-bc60-2066992d355b",
+      "name": "Calendar answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        2746
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.MINUTEPILOT_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Meetings"
+        },
+        "options": {}
+      },
+      "id": "88f475ff-27d1-45ab-ab51-c5b51b25127b",
+      "name": "Meeting register",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        2820,
+        2926
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MPsheets00000001",
+          "name": "Google Sheets (MinutePilot)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simple keyword search: score = how many query words appear in the meeting row.\nconst q = String($('Tool call').first().json.query || '').toLowerCase();\nconst words = q.split(/[^\\p{L}\\p{N}]+/u).filter((w) => w.length > 2);\nconst rows = $input.all().map((i) => i.json).filter((r) => r.meeting_id);\nconst scored = rows.map((r) => {\n  const text = `${r.title} ${r.summary} ${r.decisions} ${r.postponed}`.toLowerCase();\n  return { r, score: words.length ? words.filter((w) => text.includes(w)).length : 1 };\n}).filter((x) => x.score > 0).sort((a, b) => b.score - a.score || String(b.r.date).localeCompare(String(a.r.date))).slice(0, 3);\nconst text = scored.length\n  ? scored.map(({ r }) => `- ${r.date} · ${r.title}\\n  Decisions: ${r.decisions || '(none)'}\\n  Postponed: ${r.postponed || '(none)'}`).join('\\n')\n  : `No meeting in the register matches \"${q}\".`;\nreturn [{ json: { result: `Register search (${rows.length} meetings saved):\\n${text}` } }];"
+      },
+      "id": "b63febb9-3e54-4416-bd2c-afb163094ef5",
+      "name": "Register answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        2926
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { result: 'Unknown lookup. Use action \"tasks\", \"calendar\" or \"register\".' } }];"
+      },
+      "id": "71fe30f7-2fe8-417f-b97e-f87b592c8067",
+      "name": "Unknown lookup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2820,
+        3106
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "job",
+              "type": "string"
+            },
+            {
+              "name": "sessionId",
+              "type": "string"
+            },
+            {
+              "name": "title",
+              "type": "string"
+            },
+            {
+              "name": "date",
+              "type": "string"
+            },
+            {
+              "name": "attendees",
+              "type": "string"
+            },
+            {
+              "name": "changes",
+              "type": "string"
+            },
+            {
+              "name": "action",
+              "type": "string"
+            },
+            {
+              "name": "query",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "name": "Tool call",
+      "position": [
+        80,
+        2761
+      ],
+      "id": "2774017f-1294-59fe-a594-16f1ed162dbf"
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 5,
+        "output": "={{ ['minutes', 'approve', 'lookup', 'agenda'].indexOf($json.job) === -1 ? 4 : ['minutes', 'approve', 'lookup', 'agenda'].indexOf($json.job) }}"
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "name": "Which job?",
+      "position": [
+        340,
+        2761
+      ],
+      "id": "ad923d49-4ac1-52de-81f2-1380fdfc5345"
+    },
+    {
+      "parameters": {
+        "jsCode": "throw new Error(`Unknown job \"${$json.job}\". Use one of: minutes, approve, lookup, agenda.`);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "name": "Unknown job",
+      "position": [
+        600,
+        3021
+      ],
+      "id": "27c1b024-168e-59b1-80f3-fcbc9e83b3d5"
+    }
+  ],
+  "connections": {
+    "Chat message": {
+      "main": [
+        [
+          {
+            "node": "Prepare input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare input": {
+      "main": [
+        [
+          {
+            "node": "Log: message received",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Files attached?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Files attached?": {
+      "main": [
+        [
+          {
+            "node": "Log: reading files",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract text from files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Long pasted notes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract text from files": {
+      "main": [
+        [
+          {
+            "node": "Log: files read",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Long pasted notes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Long pasted notes?": {
+      "main": [
+        [
+          {
+            "node": "Save pasted notes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get session status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save pasted notes": {
+      "main": [
+        [
+          {
+            "node": "Log: notes saved",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get session status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get session status": {
+      "main": [
+        [
+          {
+            "node": "Build agent input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build agent input": {
+      "main": [
+        [
+          {
+            "node": "Approve, minutes or AI?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama chat model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "MinutePilot agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "MinutePilot agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "make_minutes": {
+      "ai_tool": [
+        [
+          {
+            "node": "MinutePilot agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "change_minutes": {
+      "ai_tool": [
+        [
+          {
+            "node": "MinutePilot agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "approve_minutes": {
+      "ai_tool": [
+        [
+          {
+            "node": "MinutePilot agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "lookup": {
+      "ai_tool": [
+        [
+          {
+            "node": "MinutePilot agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "prepare_agenda": {
+      "ai_tool": [
+        [
+          {
+            "node": "MinutePilot agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MinutePilot agent": {
+      "main": [
+        [
+          {
+            "node": "Format reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format reply": {
+      "main": [
+        [
+          {
+            "node": "Log: answer ready",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send answer to chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error reply": {
+      "main": [
+        [
+          {
+            "node": "Log: agent failed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send answer to chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve directly": {
+      "main": [
+        [
+          {
+            "node": "Approval reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Approval error reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval reply": {
+      "main": [
+        [
+          {
+            "node": "Log: answer ready",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send answer to chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval error reply": {
+      "main": [
+        [
+          {
+            "node": "Log: agent failed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send answer to chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve, minutes or AI?": {
+      "main": [
+        [
+          {
+            "node": "Approve directly",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Make minutes directly",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log: agent thinking",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "MinutePilot agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make minutes directly": {
+      "main": [
+        [
+          {
+            "node": "Minutes reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Minutes error reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Minutes reply": {
+      "main": [
+        [
+          {
+            "node": "Log: answer ready",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send answer to chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Minutes error reply": {
+      "main": [
+        [
+          {
+            "node": "Log: agent failed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send answer to chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get meeting notes": {
+      "main": [
+        [
+          {
+            "node": "Get current draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get current draft": {
+      "main": [
+        [
+          {
+            "node": "Build prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build prompt": {
+      "main": [
+        [
+          {
+            "node": "Ollama: write minutes",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log: asking the AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama: write minutes": {
+      "main": [
+        [
+          {
+            "node": "Make draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make draft": {
+      "main": [
+        [
+          {
+            "node": "Save draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save draft": {
+      "main": [
+        [
+          {
+            "node": "Answer for the agent (minutes)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log: draft ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get draft": {
+      "main": [
+        [
+          {
+            "node": "Check draft and recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check draft and recipients": {
+      "main": [
+        [
+          {
+            "node": "Email needed?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "One item per action",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Action rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Calendar items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Postponed rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Meeting row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "All steps done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send minutes email": {
+      "main": [
+        [
+          {
+            "node": "Log: email sent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Record: email sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per action": {
+      "main": [
+        [
+          {
+            "node": "Create task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create task": {
+      "main": [
+        [
+          {
+            "node": "Record: tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action rows": {
+      "main": [
+        [
+          {
+            "node": "Register: actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register: actions": {
+      "main": [
+        [
+          {
+            "node": "Record: action rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log: tasks created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create calendar event": {
+      "main": [
+        [
+          {
+            "node": "Record: calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendar items": {
+      "main": [
+        [
+          {
+            "node": "Create calendar event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postponed rows": {
+      "main": [
+        [
+          {
+            "node": "Register: postponed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meeting row": {
+      "main": [
+        [
+          {
+            "node": "Register: meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register: meeting": {
+      "main": [
+        [
+          {
+            "node": "Record: register",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark draft approved": {
+      "main": [
+        [
+          {
+            "node": "Log: done",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Answer for the agent (approve)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email needed?": {
+      "main": [
+        [
+          {
+            "node": "Send minutes email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register: postponed": {
+      "main": [
+        [
+          {
+            "node": "Record: postponed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All steps done": {
+      "main": [
+        [
+          {
+            "node": "Mark draft approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: tasks": {
+      "main": [
+        [
+          {
+            "node": "Tasks all created?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tasks all created?": {
+      "main": [
+        []
+      ]
+    },
+    "Record: calendar": {
+      "main": [
+        [
+          {
+            "node": "Events all created?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Events all created?": {
+      "main": [
+        [
+          {
+            "node": "Log: calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every day at 8:00": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Log: agenda",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upcoming meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upcoming meetings": {
+      "main": [
+        [
+          {
+            "node": "Pick meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick meeting": {
+      "main": [
+        [
+          {
+            "node": "Open tasks (agenda)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open tasks (agenda)": {
+      "main": [
+        [
+          {
+            "node": "Postponed topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postponed topics": {
+      "main": [
+        [
+          {
+            "node": "Build agenda prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build agenda prompt": {
+      "main": [
+        [
+          {
+            "node": "Ollama: write agenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama: write agenda": {
+      "main": [
+        [
+          {
+            "node": "Agenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agenda": {
+      "main": [
+        [
+          {
+            "node": "Chat or email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat or email?": {
+      "main": [
+        [
+          {
+            "node": "Log: agenda ready",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Answer for the agent (agenda)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email the agenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test now (agenda)": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every day at 8:05": {
+      "main": [
+        [
+          {
+            "node": "Open tasks (reminders)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open tasks (reminders)": {
+      "main": [
+        [
+          {
+            "node": "Late or due today",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Late or due today": {
+      "main": [
+        [
+          {
+            "node": "Email the reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test now (reminders)": {
+      "main": [
+        [
+          {
+            "node": "Open tasks (reminders)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which lookup?": {
+      "main": [
+        [
+          {
+            "node": "Open tasks (lookup)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upcoming events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meeting register",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unknown lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open tasks (lookup)": {
+      "main": [
+        [
+          {
+            "node": "Tasks answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upcoming events": {
+      "main": [
+        [
+          {
+            "node": "Calendar answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meeting register": {
+      "main": [
+        [
+          {
+            "node": "Register answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool call": {
+      "main": [
+        [
+          {
+            "node": "Which job?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which job?": {
+      "main": [
+        [
+          {
+            "node": "Get meeting notes",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log: writing minutes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get draft",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log: approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log: lookup",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Which lookup?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unknown job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  },
+  "pinData": {},
+  "tags": []
+}

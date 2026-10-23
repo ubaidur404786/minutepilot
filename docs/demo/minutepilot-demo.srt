@@ -1,0 +1,68 @@
+1
+00:00:02,300 --> 00:00:12,833
+This is MinutePilot. Give it a meeting: a recording, a whiteboard photo, or your notes. It writes the minutes, and once you approve, it sends the email, creates the
+
+2
+00:00:12,833 --> 00:00:18,100
+tasks, and updates your calendar. It all runs on this laptop, with free AI models.
+
+3
+00:00:18,700 --> 00:00:26,675
+The back end is one n8n workflow. A note on the left explains the whole flow, for anyone who wants the details.
+
+4
+00:00:27,275 --> 00:00:38,423
+Each coloured block is one job. Blue receives the message, and turns audio or photos into text. Orange decides where it goes. Purple is the AI agent, running the free
+
+5
+00:00:38,423 --> 00:00:49,571
+Qwen model, and it picks the right tool. Green writes the minutes draft. Red acts in Google, but only after you approve. And yellow runs by itself every morning, with
+
+6
+00:00:49,571 --> 00:00:51,250
+the agenda and reminders.
+
+7
+00:00:51,850 --> 00:00:59,375
+Let's try it. I click the attach button, pick a short meeting recording from my test folder, and ask for the minutes.
+
+8
+00:00:59,975 --> 00:01:10,844
+Every step shows up live in the chat. First, Whisper turns the audio into text, right here on the laptop. In n8n, the same run shows up as running. Then the free
+
+9
+00:01:10,844 --> 00:01:20,025
+Qwen model writes the draft. This laptop only has a small graphics card, so this takes a while. With better hardware, it is much faster.
+
+10
+00:01:20,625 --> 00:01:30,450
+Here is the draft: a short summary, the decisions, the actions with owners and due dates, and the next meeting. Nothing is sent until I click Approve.
+
+11
+00:01:31,050 --> 00:01:41,775
+Now it sends the email, creates the tasks, and adds the deadlines to the calendar. For this test, every attendee is one of my own Gmail aliases.
+
+12
+00:01:42,375 --> 00:01:52,175
+In Gmail, the email with the minutes is at the top of the inbox. My other emails are blurred. It has the decisions, the actions, and the next meeting.
+
+13
+00:01:52,775 --> 00:01:57,825
+Calendar has the deadline and the next meeting, and the tasks are on the right.
+
+14
+00:01:58,425 --> 00:02:04,275
+And the meeting register in Google Sheets gets a new row, plus one row for each action.
+
+15
+00:02:04,875 --> 00:02:15,525
+It also reads photos. Here I attach a flipchart written in German. A vision model reads it, and the minutes come back in German, with every task and its owner.
+
+16
+00:02:16,125 --> 00:02:26,646
+You can also just ask questions, like: which tasks are still open? The agent picks the lookup tool, reads Google Tasks, and lists them. That's MinutePilot: from
+
+17
+00:02:26,646 --> 00:02:30,000
+meeting to action, with free models, on one laptop.
+
